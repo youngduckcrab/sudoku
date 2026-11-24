@@ -152,7 +152,11 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .cell .v { font-weight: 500; color: var(--user); }
 .cell.given .v { color: var(--given); font-weight: 650; }
 .cell.conflict .v, .cell.wrong .v { color: var(--wrong); }
-.cell.conflict { background: var(--wrong-bg); }
+.cell.conflict, .cell.wrong { background: var(--wrong-bg); }
+.cell.shake .v { animation: shake .4s ease-in-out; }
+@keyframes shake { 20%, 60% { transform: translateX(-3px); } 40%, 80% { transform: translateX(3px); } }
+.mistakes { font-size: 13px; font-weight: 600; color: var(--wrong); background: var(--wrong-bg); padding: 2px 8px; border-radius: 999px; }
+.mistakes[hidden] { display: none; }
 
 .notes {
   width: 100%; height: 100%;

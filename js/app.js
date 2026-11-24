@@ -15,7 +15,9 @@
   function load(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }
   function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage unavailable */ } }
 
-  const settings = Object.assign({ autoRemove: true, highlightSame: true, showMistakes: false, showTimer: true, quickPen: false }, load(SETTINGS) || {});
+  const settings = Object.assign({ autoRemove: true, highlightSame: true, showMistakes: true, showTimer: true, quickPen: false }, load(SETTINGS) || {});
+  // v2: wrong answers are shown immediately by default (older saves had it off).
+  if (!(settings.version >= 2)) { settings.showMistakes = true; settings.version = 2; save(SETTINGS, settings); }
   let st = load(STORE);
   let hint = null; // { step, cand, stage }
   // Quick pen: 0 = none, 1..9 = digit pen, -1 = eraser.
@@ -74,11 +76,22 @@
     persist(); render();
   }
 
+  let flashCell = -1, flashTimer;
   function place(c, d) {
+    const wrong = d !== st.solution[c];
     st.values[c] = d;
     st.notes[c] = 0;
-    if (settings.autoRemove) for (const p of PEERS[c]) st.notes[p] &= ~bit(d);
-    if (d !== st.solution[c]) st.mistakes++;
+    // A number already shown as wrong must not wipe the correct candidates around it.
+    if (settings.autoRemove && !(wrong && settings.showMistakes)) for (const p of PEERS[c]) st.notes[p] &= ~bit(d);
+    if (wrong) {
+      st.mistakes++;
+      if (settings.showMistakes) {
+        flashCell = c;
+        clearTimeout(flashTimer);
+        flashTimer = setTimeout(() => { flashCell = -1; render(); }, 450);
+        if (navigator.vibrate) try { navigator.vibrate(60); } catch (e) { /* unsupported */ }
+      }
+    }
   }
 
   /** Write digit d into cell c (value or note, depending on notes mode). Returns true if changed. */
@@ -214,7 +227,7 @@
       st.done = true;
       st.selected = -1;
       persist(); render();
-      $('win-text').textContent = `${LEVELS[st.level]} 퍼즐을 ${fmtTime(st.elapsed)}에 풀었습니다. 힌트 ${st.hints}회 사용.`;
+      $('win-text').textContent = `${LEVELS[st.level]} 퍼즐을 ${fmtTime(st.elapsed)}에 풀었습니다. 힌트 ${st.hints}회, 오답 ${st.mistakes}회.`;
       setTimeout(() => openDlg('win-dlg'), 250);
     }
   }
@@ -415,6 +428,7 @@
       }
       if (v && conflicts.has(c) && !st.givens[c]) cls.push('conflict');
       if (v && !st.givens[c] && settings.showMistakes && v !== st.solution[c]) cls.push('wrong');
+      if (c === flashCell) cls.push('shake');
 
       let html = '';
       if (v) {
@@ -466,6 +480,9 @@
     badge.textContent = LEVELS[st.level];
     badge.className = `badge ${st.level}`;
     renderTimer();
+    const mk = $('mistakes');
+    mk.hidden = !settings.showMistakes || !st.mistakes;
+    mk.textContent = `오답 ${st.mistakes}`;
   }
 
   /* ------------------------------------------------------------ timer */

@@ -166,7 +166,11 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .cell .v { font-weight: 500; color: var(--user); }
 .cell.given .v { color: var(--given); font-weight: 650; }
 .cell.conflict .v, .cell.wrong .v { color: var(--wrong); }
-.cell.conflict { background: var(--wrong-bg); }
+.cell.conflict, .cell.wrong { background: var(--wrong-bg); }
+.cell.shake .v { animation: shake .4s ease-in-out; }
+@keyframes shake { 20%, 60% { transform: translateX(-3px); } 40%, 80% { transform: translateX(3px); } }
+.mistakes { font-size: 13px; font-weight: 600; color: var(--wrong); background: var(--wrong-bg); padding: 2px 8px; border-radius: 999px; }
+.mistakes[hidden] { display: none; }
 
 .notes {
   width: 100%; height: 100%;
@@ -330,6 +334,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
         <span id="level-badge" class="badge"></span>
       </div>
       <div class="top-right">
+        <span id="mistakes" class="mistakes" hidden></span>
         <span id="timer" class="timer" aria-label="경과 시간">00:00</span>
         <button id="menu-btn" class="icon-btn" aria-label="메뉴">
           <svg viewBox="0 0 24 24" width="22" height="22"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
@@ -437,6 +442,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
     <h2>도움말</h2>
     <ul class="help">
       <li>칸을 누른 뒤 아래 숫자를 눌러 입력합니다. 같은 숫자를 다시 누르면 지워집니다.</li>
+      <li>정답과 다른 숫자를 넣으면 바로 빨갛게 표시되고 오답 횟수가 올라갑니다 (설정에서 끌 수 있습니다).</li>
       <li><b>메모</b>를 켜면 숫자가 후보로 기록됩니다.</li>
       <li><b>빠른펜</b>을 켜면 숫자를 먼저 고르고 칸을 누를 때마다 그 숫자가 채워집니다. 메모도 켜면 후보로 기록되며, 칸 위를 문질러 여러 칸에 한 번에 후보를 넣거나 뺄 수 있습니다. 빠른펜에서 <b>지우기</b>는 지우개 펜이 됩니다. 판에 있는 숫자를 누르면 그 숫자가 펜으로 선택됩니다.</li>
       <li><b>힌트</b>는 먼저 사용할 기법과 살펴볼 곳을 알려 주고, <b>자세히 보기</b>를 누르면 어떤 칸의 어떤 후보를 왜 지울 수 있는지(또는 어떤 칸에 숫자를 채울 수 있는지) 설명합니다. <b>적용하기</b>로 바로 반영할 수 있습니다.</li>
@@ -2160,7 +2166,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
   function load(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }
   function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage unavailable */ } }
 
-  const settings = Object.assign({ autoRemove: true, highlightSame: true, showMistakes: false, showTimer: true, quickPen: false }, load(SETTINGS) || {});
+  const settings = Object.assign({ autoRemove: true, highlightSame: true, showMistakes: true, showTimer: true, quickPen: false }, load(SETTINGS) || {});
+  // v2: wrong answers are shown immediately by default (older saves had it off).
+  if (!(settings.version >= 2)) { settings.showMistakes = true; settings.version = 2; save(SETTINGS, settings); }
   let st = load(STORE);
   let hint = null; // { step, cand, stage }
   // Quick pen: 0 = none, 1..9 = digit pen, -1 = eraser.
@@ -2219,11 +2227,22 @@ button { font: inherit; color: inherit; cursor: pointer; }
     persist(); render();
   }
 
+  let flashCell = -1, flashTimer;
   function place(c, d) {
+    const wrong = d !== st.solution[c];
     st.values[c] = d;
     st.notes[c] = 0;
-    if (settings.autoRemove) for (const p of PEERS[c]) st.notes[p] &= ~bit(d);
-    if (d !== st.solution[c]) st.mistakes++;
+    // A number already shown as wrong must not wipe the correct candidates around it.
+    if (settings.autoRemove && !(wrong && settings.showMistakes)) for (const p of PEERS[c]) st.notes[p] &= ~bit(d);
+    if (wrong) {
+      st.mistakes++;
+      if (settings.showMistakes) {
+        flashCell = c;
+        clearTimeout(flashTimer);
+        flashTimer = setTimeout(() => { flashCell = -1; render(); }, 450);
+        if (navigator.vibrate) try { navigator.vibrate(60); } catch (e) { /* unsupported */ }
+      }
+    }
   }
 
   /** Write digit d into cell c (value or note, depending on notes mode). Returns true if changed. */
@@ -2359,7 +2378,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
       st.done = true;
       st.selected = -1;
       persist(); render();
-      $('win-text').textContent = `${LEVELS[st.level]} 퍼즐을 ${fmtTime(st.elapsed)}에 풀었습니다. 힌트 ${st.hints}회 사용.`;
+      $('win-text').textContent = `${LEVELS[st.level]} 퍼즐을 ${fmtTime(st.elapsed)}에 풀었습니다. 힌트 ${st.hints}회, 오답 ${st.mistakes}회.`;
       setTimeout(() => openDlg('win-dlg'), 250);
     }
   }
@@ -2560,6 +2579,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
       }
       if (v && conflicts.has(c) && !st.givens[c]) cls.push('conflict');
       if (v && !st.givens[c] && settings.showMistakes && v !== st.solution[c]) cls.push('wrong');
+      if (c === flashCell) cls.push('shake');
 
       let html = '';
       if (v) {
@@ -2611,6 +2631,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
     badge.textContent = LEVELS[st.level];
     badge.className = `badge ${st.level}`;
     renderTimer();
+    const mk = $('mistakes');
+    mk.hidden = !settings.showMistakes || !st.mistakes;
+    mk.textContent = `오답 ${st.mistakes}`;
   }
 
   /* ------------------------------------------------------------ timer */
