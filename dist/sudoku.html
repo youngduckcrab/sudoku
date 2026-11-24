@@ -2286,27 +2286,27 @@ button { font: inherit; color: inherit; cursor: pointer; }
    * same action (add/remove note, erase) over every cell the finger passes. */
   function strokeStart(c) {
     if (st.done) return false;
-    if (!pen) { // no pen yet: tapping a number on the board picks it
-      if (!st.values[c]) return false;
-      pen = st.values[c];
-      render();
-      return true;
-    }
-    let kind;
+    if (!pen && !st.values[c]) return false;
+    let kind = null, pick = 0;
     if (pen === -1) kind = 'erase';
-    else if (st.givens[c] || (st.values[c] && st.values[c] !== pen && st.notesMode)) {
-      if (st.values[c]) pen = st.values[c]; // tapping a number picks it as the pen
-      render();
-      return true;
+    else if (!pen || st.givens[c] || (st.values[c] && st.notesMode)) {
+      // Starting on a number: a plain tap picks it as the pen; a drag that
+      // continues into empty cells (notes mode) still writes notes there.
+      pick = st.values[c];
     } else if (st.notesMode) kind = st.notes[c] & bit(pen) ? 'note-off' : 'note-on';
     else kind = 'value';
-    stroke = { kind, before: snapshot(), changed: false, last: -1 };
+    stroke = { kind, pick, before: snapshot(), changed: false, last: -1, start: c };
     strokeApply(c);
     return true;
   }
   function strokeApply(c) {
     if (!stroke || c === stroke.last || c < 0) return;
     stroke.last = c;
+    if (stroke.kind === null) {
+      if (c === stroke.start || !(pen > 0) || !st.notesMode || st.values[c]) return;
+      stroke.kind = st.notes[c] & bit(pen) ? 'note-off' : 'note-on';
+      stroke.pick = 0;
+    }
     if (st.givens[c]) return;
     let ch = false;
     if (stroke.kind === 'erase') ch = eraseCell(c);
@@ -2320,6 +2320,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
   }
   function strokeEnd() {
     if (!stroke) return;
+    if (stroke.pick) { pen = stroke.pick; render(); }
     if (stroke.changed) {
       st.undo.push(stroke.before);
       if (st.undo.length > 300) st.undo.shift();
