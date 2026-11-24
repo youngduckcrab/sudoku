@@ -1,0 +1,62 @@
+name: Android APK
+
+on:
+  push:
+    branches: [main, 'claude/**']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Test hint engine
+        run: node tools/check.js 300
+
+      - name: Bundle web app into the APK assets
+        run: node tools/build-single.js android/app/src/main/assets/index.html
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build APK
+        run: gradle -p android assembleRelease --no-daemon
+
+      - name: Collect files
+        run: |
+          mkdir -p out
+          cp android/app/build/outputs/apk/release/app-release.apk out/sudoku.apk
+          node tools/build-single.js out/sudoku.html
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sudoku
+          path: out/
+
+      - name: Publish download release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-latest
+          name: 스도쿠 (오프라인) 최신 빌드
+          prerelease: true
+          make_latest: false
+          body: |
+            - **sudoku.apk**: 안드로이드 설치 파일 (인터넷 권한 없음, 완전 오프라인)
+            - **sudoku.html**: 파일 하나짜리 웹 버전 (브라우저로 열기)
+          files: |
+            out/sudoku.apk
+            out/sudoku.html
