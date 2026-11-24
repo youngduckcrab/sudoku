@@ -19,7 +19,7 @@
   // v2: wrong answers are shown immediately by default (older saves had it off).
   if (!(settings.version >= 2)) { settings.showMistakes = true; settings.version = 2; save(SETTINGS, settings); }
   let st = load(STORE);
-  let hint = null; // { step, cand, stage }
+  let hint = null; // { step, cand, pages, page }
   // Quick pen: 0 = none, 1..9 = digit pen, -1 = eraser.
   let pen = 0;
   let stroke = null; // active drag in quick-pen mode
@@ -305,13 +305,44 @@
 
   function showHint() {
     if (!st || st.done) return;
-    if (hint && hint.stage === 1) { hint.stage = 2; renderHint(); render(); return; }
-    if (hint) return;
+    if (hint) { hintNext(); return; }
     hint = computeHint();
-    hint.stage = hint.special && hint.special !== 'cleanup' ? 2 : 1;
+    hint.pages = buildPages(hint);
+    hint.page = 0;
     st.hints++;
     persist();
     renderHint(); render();
+  }
+
+  /* Split a hint into pages shown one at a time:
+   *   'area'    – where to look (houses shaded only)
+   *   'pattern' – one sentence of reasoning per page (pattern cells and key candidates)
+   *   'full'    – the conclusion (candidates to remove / digit to place) */
+  function buildPages(h) {
+    const s = h.step;
+    let text = C.fixJosa(s.text);
+    let conclusion = '';
+    const arrow = text.indexOf('→');
+    if (arrow >= 0) { conclusion = text.slice(arrow + 1).trim(); text = text.slice(0, arrow).trim(); }
+    // Sentence boundaries: "...다." / "...)." / "...=8." / "...3열." followed by a space.
+    const sentences = text.replace(/([다\d)열]\.)\s+/g, '$1\n').split('\n').map(x => x.trim()).filter(Boolean);
+    if (!conclusion && sentences.length > 1) conclusion = sentences.pop();
+    const pages = [];
+    if (!h.special) pages.push({ text: C.fixJosa(s.summary), phase: 'area' });
+    for (const t of sentences) pages.push({ text: t, phase: 'pattern' });
+    if (conclusion) pages.push({ text: conclusion, phase: 'full', conclusion: true });
+    if (!pages.length) pages.push({ text: text, phase: 'full' });
+    pages[pages.length - 1].phase = 'full';
+    return pages;
+  }
+  const hintPhase = () => (hint ? hint.pages[hint.page].phase : null);
+  function hintNext() {
+    if (!hint) return;
+    if (hint.page < hint.pages.length - 1) { hint.page++; renderHint(); render(); }
+    else applyHint();
+  }
+  function hintPrev() {
+    if (hint && hint.page > 0) { hint.page--; renderHint(); render(); }
   }
 
   function renderHint() {
@@ -323,11 +354,29 @@
     panel.scrollTop = 0;
     $('hint-kicker').textContent = s.level ? `힌트 · 기법 난이도 ${LEVEL_STARS[s.level]}` : '힌트';
     $('hint-title').textContent = s.name;
-    const detailed = hint.stage === 2;
-    $('hint-text').textContent = C.fixJosa(detailed ? s.text : s.summary);
-    $('hint-more').hidden = detailed;
-    $('hint-apply').hidden = !detailed;
-    $('hint-legend').hidden = !detailed || !s.marks.length || !!hint.special;
+    const pg = hint.pages[hint.page];
+    const last = hint.page === hint.pages.length - 1;
+    const detailed = last;
+    const textEl = $('hint-text');
+    textEl.textContent = '';
+    textEl.className = 'sheet-text' + (pg.conclusion ? ' conclusion' + (s.placements.length && !s.eliminations.length ? ' place' : '') : '');
+    if (pg.conclusion) {
+      const lead = document.createElement('span');
+      lead.className = 'lead';
+      lead.textContent = '결론';
+      textEl.appendChild(lead);
+    } else if (pg.phase === 'area') {
+      const lead = document.createElement('span');
+      lead.className = 'lead';
+      lead.textContent = '살펴볼 곳';
+      textEl.appendChild(lead);
+    }
+    textEl.appendChild(document.createTextNode(pg.text));
+    $('hint-progress').textContent = hint.pages.length > 1 ? `${hint.page + 1} / ${hint.pages.length}` : '';
+    $('hint-prev').hidden = hint.page === 0;
+    $('hint-next').hidden = last;
+    $('hint-apply').hidden = !last;
+    $('hint-legend').hidden = pg.phase === 'area' || !s.marks.length || !!hint.special;
     const note = $('hint-note');
     note.hidden = true;
     if (detailed && !hint.special && s.eliminations.length && st.values.some((v, c) => !v && !st.notes[c])) {
@@ -397,16 +446,18 @@
     if (h) {
       const s = h.step;
       for (const u of s.units || []) for (const c of C.UNITS[u]) hUnits.add(c);
-      if (h.stage === 2) {
+      const phase = hintPhase();
+      if (phase !== 'area') {
+        const full = phase === 'full';
         for (const c of s.cells) hCells.add(c);
         for (const c of s.refs || []) hRefs.add(c);
         for (const m of s.marks) {
-          if (m.role === 'place') continue;
+          if (m.role === 'place' || (m.role === 'elim' && !full)) continue;
           if (!markMap.has(m.cell)) markMap.set(m.cell, new Map());
           const cur = markMap.get(m.cell).get(m.digit);
           if (cur !== 'elim') markMap.get(m.cell).set(m.digit, m.role);
         }
-        for (const p of s.placements) places.set(p.cell, p.digit);
+        if (full) for (const p of s.placements) places.set(p.cell, p.digit);
       }
     }
 
@@ -438,7 +489,7 @@
       } else {
         let mask = st.notes[c];
         const marks = markMap.get(c);
-        const showGhost = h && h.stage === 2 && h.cand && (hCells.has(c) || marks) && !h.special;
+        const showGhost = h && hintPhase() !== 'area' && h.cand && (hCells.has(c) || marks) && !h.special;
         if (showGhost && !mask) { mask = h.cand[c]; cls.push('h-ghost'); }
         if (h && h.special === 'cleanup' && marks) mask = st.notes[c];
         if (mask || marks) {
@@ -581,7 +632,8 @@
   $('notes-btn').addEventListener('click', () => { if (!st) return; st.notesMode = !st.notesMode; persist(); render(); });
   $('pen-btn').addEventListener('click', toggleQuickPen);
   $('hint-btn').addEventListener('click', showHint);
-  $('hint-more').addEventListener('click', () => { if (hint) { hint.stage = 2; renderHint(); render(); } });
+  $('hint-next').addEventListener('click', hintNext);
+  $('hint-prev').addEventListener('click', hintPrev);
   $('hint-apply').addEventListener('click', applyHint);
   $('hint-close').addEventListener('click', closeHint);
 
@@ -596,7 +648,8 @@
     if (k === 'q' || k === 'Q') { toggleQuickPen(); return; }
     if (k === 'n' || k === 'N' || k === ' ') { e.preventDefault(); st.notesMode = !st.notesMode; persist(); render(); return; }
     if (k === 'h' || k === 'H') { showHint(); return; }
-    if (k === 'Enter' && hint && hint.stage === 2) { applyHint(); return; }
+    if (hint && (k === 'Enter' || k === 'ArrowRight')) { e.preventDefault(); hintNext(); return; }
+    if (hint && k === 'ArrowLeft') { e.preventDefault(); hintPrev(); return; }
     if (k === 'Escape') { closeHint(); return; }
     const mv = { ArrowUp: -9, ArrowDown: 9, ArrowLeft: -1, ArrowRight: 1 }[k];
     if (mv) {

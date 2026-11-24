@@ -256,9 +256,14 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .sheet-kicker { font-size: 12px; color: var(--muted); font-weight: 600; }
 .sheet h2 { margin: 2px 0 0; font-size: 18px; }
 .sheet-text { margin: 6px 0 8px; line-height: 1.55; font-size: 14.5px; word-break: keep-all; }
+.hint-progress { margin-right: auto; align-self: center; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.sheet-text.conclusion { border-left: 3px solid var(--elim); padding-left: 10px; font-weight: 600; }
+.sheet-text.conclusion.place { border-left-color: var(--place); }
+.sheet-text .lead { display: block; font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 2px; }
 .sheet-note { margin: 0 0 8px; font-size: 13px; color: var(--muted); line-height: 1.5; }
 .sheet-actions { display: flex; gap: 8px; justify-content: flex-end; position: sticky; bottom: -14px; background: var(--surface); padding: 8px 0 0; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.5px; color: var(--muted); margin-bottom: 10px; }
+.legend[hidden] { display: none; }
 .legend span { display: inline-flex; align-items: center; gap: 5px; }
 .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
 .dot.key { background: var(--key); }
@@ -390,7 +395,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
         </div>
         <p id="hint-note" class="sheet-note" hidden></p>
         <div class="sheet-actions">
-          <button id="hint-more" class="btn">자세히 보기</button>
+          <span id="hint-progress" class="hint-progress"></span>
+          <button id="hint-prev" class="btn">이전</button>
+          <button id="hint-next" class="btn primary">다음</button>
           <button id="hint-apply" class="btn primary">적용하기</button>
         </div>
       </section>
@@ -445,7 +452,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
       <li>정답과 다른 숫자를 넣으면 바로 빨갛게 표시되고 오답 횟수가 올라갑니다 (설정에서 끌 수 있습니다).</li>
       <li><b>메모</b>를 켜면 숫자가 후보로 기록됩니다.</li>
       <li><b>빠른펜</b>을 켜면 숫자를 먼저 고르고 칸을 누를 때마다 그 숫자가 채워집니다. 메모도 켜면 후보로 기록되며, 칸 위를 문질러 여러 칸에 한 번에 후보를 넣거나 뺄 수 있습니다. 빠른펜에서 <b>지우기</b>는 지우개 펜이 됩니다. 판에 있는 숫자를 누르면 그 숫자가 펜으로 선택됩니다.</li>
-      <li><b>힌트</b>는 먼저 사용할 기법과 살펴볼 곳을 알려 주고, <b>자세히 보기</b>를 누르면 어떤 칸의 어떤 후보를 왜 지울 수 있는지(또는 어떤 칸에 숫자를 채울 수 있는지) 설명합니다. <b>적용하기</b>로 바로 반영할 수 있습니다.</li>
+      <li><b>힌트</b>는 먼저 사용할 기법과 살펴볼 곳을 알려 주고, <b>다음</b>을 누를 때마다 이유를 한 단계씩 설명합니다. 마지막 단계에서 어떤 칸의 어떤 후보를 지울 수 있는지(또는 어떤 칸에 숫자를 채울 수 있는지) 보여 주고, <b>적용하기</b>로 바로 반영할 수 있습니다.</li>
       <li>후보 메모가 없는 칸은 힌트가 자동으로 후보를 계산해 사용합니다.</li>
       <li>키보드: 1–9 입력, 방향키 이동, Backspace 지우기, N 메모, Q 빠른펜, H 힌트, Ctrl+Z 되돌리기.</li>
       <li>한 번 열고 나면 인터넷 없이도 실행됩니다. 진행 상황은 이 기기에 자동 저장됩니다.</li>
@@ -2170,7 +2177,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
   // v2: wrong answers are shown immediately by default (older saves had it off).
   if (!(settings.version >= 2)) { settings.showMistakes = true; settings.version = 2; save(SETTINGS, settings); }
   let st = load(STORE);
-  let hint = null; // { step, cand, stage }
+  let hint = null; // { step, cand, pages, page }
   // Quick pen: 0 = none, 1..9 = digit pen, -1 = eraser.
   let pen = 0;
   let stroke = null; // active drag in quick-pen mode
@@ -2456,13 +2463,44 @@ button { font: inherit; color: inherit; cursor: pointer; }
 
   function showHint() {
     if (!st || st.done) return;
-    if (hint && hint.stage === 1) { hint.stage = 2; renderHint(); render(); return; }
-    if (hint) return;
+    if (hint) { hintNext(); return; }
     hint = computeHint();
-    hint.stage = hint.special && hint.special !== 'cleanup' ? 2 : 1;
+    hint.pages = buildPages(hint);
+    hint.page = 0;
     st.hints++;
     persist();
     renderHint(); render();
+  }
+
+  /* Split a hint into pages shown one at a time:
+   *   'area'    – where to look (houses shaded only)
+   *   'pattern' – one sentence of reasoning per page (pattern cells and key candidates)
+   *   'full'    – the conclusion (candidates to remove / digit to place) */
+  function buildPages(h) {
+    const s = h.step;
+    let text = C.fixJosa(s.text);
+    let conclusion = '';
+    const arrow = text.indexOf('→');
+    if (arrow >= 0) { conclusion = text.slice(arrow + 1).trim(); text = text.slice(0, arrow).trim(); }
+    // Sentence boundaries: "...다." / "...)." / "...=8." / "...3열." followed by a space.
+    const sentences = text.replace(/([다\d)열]\.)\s+/g, '$1\n').split('\n').map(x => x.trim()).filter(Boolean);
+    if (!conclusion && sentences.length > 1) conclusion = sentences.pop();
+    const pages = [];
+    if (!h.special) pages.push({ text: C.fixJosa(s.summary), phase: 'area' });
+    for (const t of sentences) pages.push({ text: t, phase: 'pattern' });
+    if (conclusion) pages.push({ text: conclusion, phase: 'full', conclusion: true });
+    if (!pages.length) pages.push({ text: text, phase: 'full' });
+    pages[pages.length - 1].phase = 'full';
+    return pages;
+  }
+  const hintPhase = () => (hint ? hint.pages[hint.page].phase : null);
+  function hintNext() {
+    if (!hint) return;
+    if (hint.page < hint.pages.length - 1) { hint.page++; renderHint(); render(); }
+    else applyHint();
+  }
+  function hintPrev() {
+    if (hint && hint.page > 0) { hint.page--; renderHint(); render(); }
   }
 
   function renderHint() {
@@ -2474,11 +2512,29 @@ button { font: inherit; color: inherit; cursor: pointer; }
     panel.scrollTop = 0;
     $('hint-kicker').textContent = s.level ? `힌트 · 기법 난이도 ${LEVEL_STARS[s.level]}` : '힌트';
     $('hint-title').textContent = s.name;
-    const detailed = hint.stage === 2;
-    $('hint-text').textContent = C.fixJosa(detailed ? s.text : s.summary);
-    $('hint-more').hidden = detailed;
-    $('hint-apply').hidden = !detailed;
-    $('hint-legend').hidden = !detailed || !s.marks.length || !!hint.special;
+    const pg = hint.pages[hint.page];
+    const last = hint.page === hint.pages.length - 1;
+    const detailed = last;
+    const textEl = $('hint-text');
+    textEl.textContent = '';
+    textEl.className = 'sheet-text' + (pg.conclusion ? ' conclusion' + (s.placements.length && !s.eliminations.length ? ' place' : '') : '');
+    if (pg.conclusion) {
+      const lead = document.createElement('span');
+      lead.className = 'lead';
+      lead.textContent = '결론';
+      textEl.appendChild(lead);
+    } else if (pg.phase === 'area') {
+      const lead = document.createElement('span');
+      lead.className = 'lead';
+      lead.textContent = '살펴볼 곳';
+      textEl.appendChild(lead);
+    }
+    textEl.appendChild(document.createTextNode(pg.text));
+    $('hint-progress').textContent = hint.pages.length > 1 ? `${hint.page + 1} / ${hint.pages.length}` : '';
+    $('hint-prev').hidden = hint.page === 0;
+    $('hint-next').hidden = last;
+    $('hint-apply').hidden = !last;
+    $('hint-legend').hidden = pg.phase === 'area' || !s.marks.length || !!hint.special;
     const note = $('hint-note');
     note.hidden = true;
     if (detailed && !hint.special && s.eliminations.length && st.values.some((v, c) => !v && !st.notes[c])) {
@@ -2548,16 +2604,18 @@ button { font: inherit; color: inherit; cursor: pointer; }
     if (h) {
       const s = h.step;
       for (const u of s.units || []) for (const c of C.UNITS[u]) hUnits.add(c);
-      if (h.stage === 2) {
+      const phase = hintPhase();
+      if (phase !== 'area') {
+        const full = phase === 'full';
         for (const c of s.cells) hCells.add(c);
         for (const c of s.refs || []) hRefs.add(c);
         for (const m of s.marks) {
-          if (m.role === 'place') continue;
+          if (m.role === 'place' || (m.role === 'elim' && !full)) continue;
           if (!markMap.has(m.cell)) markMap.set(m.cell, new Map());
           const cur = markMap.get(m.cell).get(m.digit);
           if (cur !== 'elim') markMap.get(m.cell).set(m.digit, m.role);
         }
-        for (const p of s.placements) places.set(p.cell, p.digit);
+        if (full) for (const p of s.placements) places.set(p.cell, p.digit);
       }
     }
 
@@ -2589,7 +2647,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
       } else {
         let mask = st.notes[c];
         const marks = markMap.get(c);
-        const showGhost = h && h.stage === 2 && h.cand && (hCells.has(c) || marks) && !h.special;
+        const showGhost = h && hintPhase() !== 'area' && h.cand && (hCells.has(c) || marks) && !h.special;
         if (showGhost && !mask) { mask = h.cand[c]; cls.push('h-ghost'); }
         if (h && h.special === 'cleanup' && marks) mask = st.notes[c];
         if (mask || marks) {
@@ -2732,7 +2790,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
   $('notes-btn').addEventListener('click', () => { if (!st) return; st.notesMode = !st.notesMode; persist(); render(); });
   $('pen-btn').addEventListener('click', toggleQuickPen);
   $('hint-btn').addEventListener('click', showHint);
-  $('hint-more').addEventListener('click', () => { if (hint) { hint.stage = 2; renderHint(); render(); } });
+  $('hint-next').addEventListener('click', hintNext);
+  $('hint-prev').addEventListener('click', hintPrev);
   $('hint-apply').addEventListener('click', applyHint);
   $('hint-close').addEventListener('click', closeHint);
 
@@ -2747,7 +2806,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
     if (k === 'q' || k === 'Q') { toggleQuickPen(); return; }
     if (k === 'n' || k === 'N' || k === ' ') { e.preventDefault(); st.notesMode = !st.notesMode; persist(); render(); return; }
     if (k === 'h' || k === 'H') { showHint(); return; }
-    if (k === 'Enter' && hint && hint.stage === 2) { applyHint(); return; }
+    if (hint && (k === 'Enter' || k === 'ArrowRight')) { e.preventDefault(); hintNext(); return; }
+    if (hint && k === 'ArrowLeft') { e.preventDefault(); hintPrev(); return; }
     if (k === 'Escape') { closeHint(); return; }
     const mv = { ArrowUp: -9, ArrowDown: 9, ArrowLeft: -1, ArrowRight: 1 }[k];
     if (mv) {
