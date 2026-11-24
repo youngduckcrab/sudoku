@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#f6f4ef" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#16181d" media="(prefers-color-scheme: dark)">
+  <meta name="description" content="오프라인 스도쿠 — 후보 메모, 어려움/매우 어려움 난이도, 기법 설명 힌트">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="스도쿠">
+  <title>스도쿠</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="app">
+    <header class="top">
+      <div class="title">
+        <h1>스도쿠</h1>
+        <span id="level-badge" class="badge"></span>
+      </div>
+      <div class="top-right">
+        <span id="timer" class="timer" aria-label="경과 시간">00:00</span>
+        <button id="menu-btn" class="icon-btn" aria-label="메뉴">
+          <svg viewBox="0 0 24 24" width="22" height="22"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <main class="play">
+      <div id="board" class="board" role="grid" aria-label="스도쿠 판"></div>
+
+      <div class="tools">
+        <button class="tool" id="undo-btn" aria-label="되돌리기">
+          <svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5" /><path d="M4 9h10a6 6 0 010 12h-3" /></svg>
+          <span>되돌리기</span>
+        </button>
+        <button class="tool" id="erase-btn" aria-label="지우기">
+          <svg viewBox="0 0 24 24"><path d="M20 20H9L4 15a2 2 0 010-2.8L13.2 3a2 2 0 012.8 0L21 8a2 2 0 010 2.8L12 20" /><path d="M8 11l6 6" /></svg>
+          <span>지우기</span>
+        </button>
+        <button class="tool" id="notes-btn" aria-pressed="false" aria-label="후보 메모">
+          <svg viewBox="0 0 24 24"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z" /></svg>
+          <span>메모 <b id="notes-state">끔</b></span>
+        </button>
+        <button class="tool" id="hint-btn" aria-label="힌트">
+          <svg viewBox="0 0 24 24"><path d="M9 18h6M10 22h4" /><path d="M12 2a7 7 0 00-4 12.7V16h8v-1.3A7 7 0 0012 2z" /></svg>
+          <span>힌트</span>
+        </button>
+      </div>
+
+      <div id="pad" class="pad"></div>
+
+    <!-- Hint sheet -->
+      <section id="hint-panel" class="sheet" hidden aria-live="polite">
+        <div class="sheet-head">
+          <div>
+            <div class="sheet-kicker" id="hint-kicker">힌트</div>
+            <h2 id="hint-title"></h2>
+          </div>
+          <button class="icon-btn" id="hint-close" aria-label="힌트 닫기">
+            <svg viewBox="0 0 24 24" width="20" height="20"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+        <p id="hint-text" class="sheet-text"></p>
+        <div id="hint-legend" class="legend" hidden>
+          <span><i class="dot key"></i>핵심 후보</span>
+          <span><i class="dot alt"></i>연결 후보</span>
+          <span><i class="dot elim"></i>지울 후보</span>
+          <span><i class="dot place"></i>채울 숫자</span>
+        </div>
+        <p id="hint-note" class="sheet-note" hidden></p>
+        <div class="sheet-actions">
+          <button id="hint-more" class="btn">자세히 보기</button>
+          <button id="hint-apply" class="btn primary">적용하기</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+
+  <!-- Menu / dialogs -->
+
+  <dialog id="menu-dlg" class="dlg">
+    <h2>메뉴</h2>
+    <div class="menu-list">
+      <button data-act="new">새 게임</button>
+      <button data-act="fill">후보 자동 채우기</button>
+      <button data-act="clear-notes">모든 후보 지우기</button>
+      <button data-act="restart">처음부터 다시</button>
+      <button data-act="settings">설정</button>
+      <button data-act="help">도움말</button>
+    </div>
+    <div class="dlg-actions"><button class="btn" data-close>닫기</button></div>
+  </dialog>
+
+  <dialog id="new-dlg" class="dlg">
+    <h2>새 게임</h2>
+    <p class="muted">난이도를 선택하세요.</p>
+    <div class="level-pick">
+      <button data-level="hard">
+        <strong>어려움</strong>
+        <small>포인팅·클레이밍, 페어·트리플이 필요합니다</small>
+      </button>
+      <button data-level="expert">
+        <strong>매우 어려움</strong>
+        <small>X-윙, 스카이스크래퍼, XY-윙, 체인 등이 필요합니다</small>
+      </button>
+    </div>
+    <div class="dlg-actions"><button class="btn" data-close>취소</button></div>
+  </dialog>
+
+  <dialog id="settings-dlg" class="dlg">
+    <h2>설정</h2>
+    <label class="switch"><input type="checkbox" id="set-autoRemove"><span>숫자를 놓으면 같은 행·열·박스의 후보 자동 삭제</span></label>
+    <label class="switch"><input type="checkbox" id="set-highlightSame"><span>같은 숫자 강조</span></label>
+    <label class="switch"><input type="checkbox" id="set-showMistakes"><span>틀린 숫자 바로 표시</span></label>
+    <label class="switch"><input type="checkbox" id="set-showTimer"><span>타이머 표시</span></label>
+    <div class="dlg-actions"><button class="btn primary" data-close>완료</button></div>
+  </dialog>
+
+  <dialog id="help-dlg" class="dlg">
+    <h2>도움말</h2>
+    <ul class="help">
+      <li>칸을 누른 뒤 아래 숫자를 눌러 입력합니다. 같은 숫자를 다시 누르면 지워집니다.</li>
+      <li><b>메모</b>를 켜면 숫자가 후보로 기록됩니다.</li>
+      <li><b>힌트</b>는 먼저 사용할 기법과 살펴볼 곳을 알려 주고, <b>자세히 보기</b>를 누르면 어떤 칸의 어떤 후보를 왜 지울 수 있는지(또는 어떤 칸에 숫자를 채울 수 있는지) 설명합니다. <b>적용하기</b>로 바로 반영할 수 있습니다.</li>
+      <li>후보 메모가 없는 칸은 힌트가 자동으로 후보를 계산해 사용합니다.</li>
+      <li>키보드: 1–9 입력, 방향키 이동, Backspace 지우기, N 메모, H 힌트, Ctrl+Z 되돌리기.</li>
+      <li>한 번 열고 나면 인터넷 없이도 실행됩니다. 진행 상황은 이 기기에 자동 저장됩니다.</li>
+    </ul>
+    <div class="dlg-actions"><button class="btn primary" data-close>닫기</button></div>
+  </dialog>
+
+  <dialog id="win-dlg" class="dlg">
+    <h2>완성했습니다! 🎉</h2>
+    <p id="win-text"></p>
+    <div class="dlg-actions">
+      <button class="btn" data-close>닫기</button>
+      <button class="btn primary" data-act="new">새 게임</button>
+    </div>
+  </dialog>
+
+  <div id="busy" class="busy" hidden><div class="spinner"></div><span>퍼즐을 만드는 중…</span></div>
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="js/core.js"></script>
+  <script src="js/techniques.js"></script>
+  <script src="js/generator.js"></script>
+  <script src="js/puzzles.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

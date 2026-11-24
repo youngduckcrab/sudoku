@@ -1,0 +1,12 @@
+{
+  "name": "sudoku-offline",
+  "version": "1.0.0",
+  "private": true,
+  "description": "오프라인 스도쿠 PWA — 후보 메모, 어려움/매우 어려움, 기법 설명 힌트",
+  "scripts": {
+    "start": "python3 -m http.server 8000",
+    "test": "node tools/check.js 1000",
+    "generate": "node tools/generate.js 300"
+  },
+  "license": "MIT"
+}
