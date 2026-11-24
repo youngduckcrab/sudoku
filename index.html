@@ -46,6 +46,10 @@
           <svg viewBox="0 0 24 24"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z" /></svg>
           <span>메모 <b id="notes-state">끔</b></span>
         </button>
+        <button class="tool" id="pen-btn" aria-pressed="false" aria-label="빠른펜">
+          <svg viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z" /></svg>
+          <span>빠른펜 <b id="pen-state">끔</b></span>
+        </button>
         <button class="tool" id="hint-btn" aria-label="힌트">
           <svg viewBox="0 0 24 24"><path d="M9 18h6M10 22h4" /><path d="M12 2a7 7 0 00-4 12.7V16h8v-1.3A7 7 0 0012 2z" /></svg>
           <span>힌트</span>
@@ -127,9 +131,10 @@
     <ul class="help">
       <li>칸을 누른 뒤 아래 숫자를 눌러 입력합니다. 같은 숫자를 다시 누르면 지워집니다.</li>
       <li><b>메모</b>를 켜면 숫자가 후보로 기록됩니다.</li>
+      <li><b>빠른펜</b>을 켜면 숫자를 먼저 고르고 칸을 누를 때마다 그 숫자가 채워집니다. 메모도 켜면 후보로 기록되며, 칸 위를 문질러 여러 칸에 한 번에 후보를 넣거나 뺄 수 있습니다. 빠른펜에서 <b>지우기</b>는 지우개 펜이 됩니다. 판에 있는 숫자를 누르면 그 숫자가 펜으로 선택됩니다.</li>
       <li><b>힌트</b>는 먼저 사용할 기법과 살펴볼 곳을 알려 주고, <b>자세히 보기</b>를 누르면 어떤 칸의 어떤 후보를 왜 지울 수 있는지(또는 어떤 칸에 숫자를 채울 수 있는지) 설명합니다. <b>적용하기</b>로 바로 반영할 수 있습니다.</li>
       <li>후보 메모가 없는 칸은 힌트가 자동으로 후보를 계산해 사용합니다.</li>
-      <li>키보드: 1–9 입력, 방향키 이동, Backspace 지우기, N 메모, H 힌트, Ctrl+Z 되돌리기.</li>
+      <li>키보드: 1–9 입력, 방향키 이동, Backspace 지우기, N 메모, Q 빠른펜, H 힌트, Ctrl+Z 되돌리기.</li>
       <li>한 번 열고 나면 인터넷 없이도 실행됩니다. 진행 상황은 이 기기에 자동 저장됩니다.</li>
     </ul>
     <div class="dlg-actions"><button class="btn primary" data-close>닫기</button></div>

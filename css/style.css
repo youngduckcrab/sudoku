@@ -182,12 +182,12 @@ button { font: inherit; color: inherit; cursor: pointer; }
 /* ---------- Tools & pad ---------- */
 .tools {
   width: var(--board); min-width: 280px;
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px;
 }
 .tool {
   border: 0; background: transparent;
   display: flex; flex-direction: column; align-items: center; gap: 4px;
-  padding: 6px 0; border-radius: 12px; color: var(--muted); font-size: 12.5px;
+  padding: 6px 0; border-radius: 12px; color: var(--muted); font-size: 12px; white-space: nowrap;
 }
 .tool svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .tool:active { background: var(--peer); }
@@ -214,6 +214,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .pad button small { font-size: 10px; color: var(--muted); font-weight: 500; }
 .pad button:active { transform: scale(.96); }
 .pad button.done { opacity: .3; }
+.pad button.pen { background: var(--accent); color: var(--accent-ink); box-shadow: 0 0 0 2px var(--accent); opacity: 1; }
+.pad button.pen small { color: var(--accent-ink); opacity: .8; }
+.pad.quick.notes-mode button.pen { color: var(--accent-ink); }
+.board.quick { touch-action: none; }
 .pad.notes-mode button { color: var(--muted); font-size: clamp(16px, calc(var(--board) / 20), 24px); }
 
 /* ---------- Hint sheet ---------- */

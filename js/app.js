@@ -15,9 +15,12 @@
   function load(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }
   function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage unavailable */ } }
 
-  const settings = Object.assign({ autoRemove: true, highlightSame: true, showMistakes: false, showTimer: true }, load(SETTINGS) || {});
+  const settings = Object.assign({ autoRemove: true, highlightSame: true, showMistakes: false, showTimer: true, quickPen: false }, load(SETTINGS) || {});
   let st = load(STORE);
   let hint = null; // { step, cand, stage }
+  // Quick pen: 0 = none, 1..9 = digit pen, -1 = eraser.
+  let pen = 0;
+  let stroke = null; // active drag in quick-pen mode
 
   /* ------------------------------------------------------------ game */
 
@@ -78,32 +81,107 @@
     if (d !== st.solution[c]) st.mistakes++;
   }
 
+  /** Write digit d into cell c (value or note, depending on notes mode). Returns true if changed. */
+  function writeDigit(c, d) {
+    if (c < 0 || st.givens[c]) return false;
+    if (st.notesMode) {
+      if (st.values[c]) return false;
+      st.notes[c] ^= bit(d);
+    } else if (st.values[c] === d) st.values[c] = 0;
+    else place(c, d);
+    return true;
+  }
+  function eraseCell(c) {
+    if (c < 0 || st.givens[c] || (!st.values[c] && !st.notes[c])) return false;
+    if (st.values[c]) st.values[c] = 0; else st.notes[c] = 0;
+    return true;
+  }
+
   function inputDigit(d) {
     if (!st || st.done) return;
-    const c = st.selected;
-    if (c < 0 || st.givens[c]) return;
-    closeHint();
-    if (st.notesMode) {
-      if (st.values[c]) return;
-      pushUndo();
-      st.notes[c] ^= bit(d);
-    } else {
-      pushUndo();
-      if (st.values[c] === d) st.values[c] = 0;
-      else place(c, d);
+    if (settings.quickPen) { // pick (or drop) the pen
+      closeHint();
+      pen = pen === d ? 0 : d;
+      render();
+      return;
     }
+    const c = st.selected;
+    if (c < 0 || st.givens[c] || (st.notesMode && st.values[c])) return;
+    closeHint();
+    pushUndo();
+    writeDigit(c, d);
     persist(); render(); checkWin();
   }
 
-  function erase() {
+  function eraseSelected() {
     if (!st || st.done) return;
     const c = st.selected;
-    if (c < 0 || st.givens[c]) return;
-    if (!st.values[c] && !st.notes[c]) return;
+    if (c < 0 || st.givens[c] || (!st.values[c] && !st.notes[c])) return;
     closeHint();
     pushUndo();
-    if (st.values[c]) st.values[c] = 0; else st.notes[c] = 0;
+    eraseCell(c);
     persist(); render();
+  }
+  function erase() {
+    if (!st || st.done) return;
+    if (settings.quickPen) { closeHint(); pen = pen === -1 ? 0 : -1; render(); return; }
+    eraseSelected();
+  }
+
+  function toggleQuickPen() {
+    settings.quickPen = !settings.quickPen;
+    pen = 0;
+    save(SETTINGS, settings);
+    closeHint();
+    render();
+    toast(settings.quickPen ? '빠른펜: 숫자를 고른 뒤 칸을 누르세요' : '빠른펜을 껐습니다');
+  }
+
+  /* Quick-pen strokes. A tap applies the pen to one cell; dragging continues the
+   * same action (add/remove note, erase) over every cell the finger passes. */
+  function strokeStart(c) {
+    if (st.done) return false;
+    if (!pen) { // no pen yet: tapping a number on the board picks it
+      if (!st.values[c]) return false;
+      pen = st.values[c];
+      render();
+      return true;
+    }
+    let kind;
+    if (pen === -1) kind = 'erase';
+    else if (st.givens[c] || (st.values[c] && st.values[c] !== pen && st.notesMode)) {
+      if (st.values[c]) pen = st.values[c]; // tapping a number picks it as the pen
+      render();
+      return true;
+    } else if (st.notesMode) kind = st.notes[c] & bit(pen) ? 'note-off' : 'note-on';
+    else kind = 'value';
+    stroke = { kind, before: snapshot(), changed: false, last: -1 };
+    strokeApply(c);
+    return true;
+  }
+  function strokeApply(c) {
+    if (!stroke || c === stroke.last || c < 0) return;
+    stroke.last = c;
+    if (st.givens[c]) return;
+    let ch = false;
+    if (stroke.kind === 'erase') ch = eraseCell(c);
+    else if (stroke.kind === 'note-on' || stroke.kind === 'note-off') {
+      const want = stroke.kind === 'note-on';
+      if (!st.values[c] && !!(st.notes[c] & bit(pen)) !== want) { st.notes[c] ^= bit(pen); ch = true; }
+    } else if (stroke.kind === 'value' && !stroke.changed) {
+      ch = writeDigit(c, pen); // values are placed by tap only, never by dragging
+    }
+    if (ch) { stroke.changed = true; st.selected = c; render(); }
+  }
+  function strokeEnd() {
+    if (!stroke) return;
+    if (stroke.changed) {
+      st.undo.push(stroke.before);
+      if (st.undo.length > 300) st.undo.shift();
+      st.redo = [];
+      persist(); render(); checkWin();
+    }
+    stroke = null;
   }
 
   function fillCandidates() {
@@ -298,7 +376,7 @@
   function render() {
     if (!st) return;
     const sel = st.selected;
-    const selVal = sel >= 0 ? st.values[sel] : 0;
+    const selVal = settings.quickPen ? Math.max(pen, 0) : sel >= 0 ? st.values[sel] : 0;
     const conflicts = C.conflicts(st.values);
     const h = hint;
     const hUnits = new Set(), hCells = new Set(), hRefs = new Set(), markMap = new Map(), places = new Map();
@@ -327,7 +405,7 @@
       if (!h) {
         if (c === sel) cls.push('sel');
         else if (settings.highlightSame && selVal && v === selVal) cls.push('same');
-        else if (sel >= 0 && (ROW[c] === ROW[sel] || COL[c] === COL[sel] || BOX[c] === BOX[sel])) cls.push('peer');
+        else if (sel >= 0 && !settings.quickPen && (ROW[c] === ROW[sel] || COL[c] === COL[sel] || BOX[c] === BOX[sel])) cls.push('peer');
       } else {
         if (hRefs.has(c)) cls.push('h-ref');
         else if (hUnits.has(c)) cls.push('h-unit');
@@ -371,9 +449,15 @@
     for (const b of padEl.children) {
       const d = +b.dataset.digit;
       b.classList.toggle('done', count[d] >= 9);
+      b.classList.toggle('pen', settings.quickPen && pen === d);
       b.querySelector('small').textContent = count[d] >= 9 ? '' : String(9 - count[d]);
     }
     padEl.classList.toggle('notes-mode', st.notesMode);
+    padEl.classList.toggle('quick', settings.quickPen);
+    $('pen-btn').setAttribute('aria-pressed', String(!!settings.quickPen));
+    $('pen-state').textContent = settings.quickPen ? '켬' : '끔';
+    $('erase-btn').setAttribute('aria-pressed', String(settings.quickPen && pen === -1));
+    boardEl.classList.toggle('quick', !!settings.quickPen);
     $('notes-btn').setAttribute('aria-pressed', String(st.notesMode));
     $('notes-state').textContent = st.notesMode ? '켬' : '끔';
     $('undo-btn').disabled = !st.undo.length || st.done;
@@ -447,13 +531,29 @@
 
   /* ------------------------------------------------------------ input */
 
+  const cellAt = (x, y) => {
+    const el = document.elementFromPoint(x, y);
+    const cell = el && el.closest && el.closest('.cell');
+    return cell && boardEl.contains(cell) ? +cell.dataset.cell : -1;
+  };
   boardEl.addEventListener('pointerdown', e => {
     const el = e.target.closest('.cell');
     if (!el || !st) return;
-    if (hint) closeHint();
-    st.selected = +el.dataset.cell;
+    if (hint) { closeHint(); return; }
+    const c = +el.dataset.cell;
+    st.selected = c;
+    if (settings.quickPen && strokeStart(c)) {
+      if (stroke) { e.preventDefault(); try { boardEl.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ } }
+      return;
+    }
     render();
   });
+  boardEl.addEventListener('pointermove', e => {
+    if (!stroke) return;
+    e.preventDefault();
+    strokeApply(cellAt(e.clientX, e.clientY));
+  });
+  for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) boardEl.addEventListener(ev, strokeEnd);
   padEl.addEventListener('click', e => {
     const b = e.target.closest('button');
     if (b) inputDigit(+b.dataset.digit);
@@ -461,6 +561,7 @@
   $('undo-btn').addEventListener('click', undo);
   $('erase-btn').addEventListener('click', erase);
   $('notes-btn').addEventListener('click', () => { if (!st) return; st.notesMode = !st.notesMode; persist(); render(); });
+  $('pen-btn').addEventListener('click', toggleQuickPen);
   $('hint-btn').addEventListener('click', showHint);
   $('hint-more').addEventListener('click', () => { if (hint) { hint.stage = 2; renderHint(); render(); } });
   $('hint-apply').addEventListener('click', applyHint);
@@ -473,7 +574,8 @@
     if ((e.ctrlKey || e.metaKey) && (k === 'y' || k === 'Y')) { e.preventDefault(); redo(); return; }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (k >= '1' && k <= '9') { inputDigit(+k); return; }
-    if (k === 'Backspace' || k === 'Delete' || k === '0') { erase(); return; }
+    if (k === 'Backspace' || k === 'Delete' || k === '0') { eraseSelected(); return; }
+    if (k === 'q' || k === 'Q') { toggleQuickPen(); return; }
     if (k === 'n' || k === 'N' || k === ' ') { e.preventDefault(); st.notesMode = !st.notesMode; persist(); render(); return; }
     if (k === 'h' || k === 'H') { showHint(); return; }
     if (k === 'Enter' && hint && hint.stage === 2) { applyHint(); return; }
