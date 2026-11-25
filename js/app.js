@@ -387,7 +387,7 @@
   const LEGEND = [
     ['key', 'dot key', '들어감'], ['off', 'dot off', '아님'], ['alt', 'dot alt', '관련 후보'], ['node', 'dot node', '연결 후보'],
     ['elim', 'dot elim', '지울 후보'], ['place', 'dot place', '채울 숫자'],
-    ['strong', 'ln strong', '실선: 둘 중 하나는 참'], ['weak', 'ln weak', '점선: 둘 다 참일 수 없음'],
+    ['strong', 'ln strong', '실선: 한쪽이 아니면 다른 쪽이 반드시 그 숫자'], ['weak', 'ln weak', '점선: 한쪽이 그 숫자면 다른 쪽은 아님'],
     ['arrow', 'ln arrow', '그러면'], ['cross', 'x', '올 수 없음'],
   ];
   function renderLegend(pg) {

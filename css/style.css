@@ -314,6 +314,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .switch input { width: 20px; height: 20px; accent-color: var(--accent); flex: none; }
 .help { padding-left: 18px; margin: 0; line-height: 1.6; font-size: 14.5px; word-break: keep-all; }
 .help li { margin-bottom: 6px; }
+.help ul { padding-left: 16px; margin: 6px 0 0; }
 
 .busy {
   position: fixed; inset: 0; z-index: 50;

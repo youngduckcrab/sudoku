@@ -1,5 +1,5 @@
 /* Offline cache: everything the app needs is precached on install. */
-const CACHE = 'sudoku-v9';
+const CACHE = 'sudoku-v10';
 const FILES = [
   './', 'index.html', 'css/style.css',
   'js/core.js', 'js/techniques.js', 'js/explain.js', 'js/generator.js', 'js/puzzles.js', 'js/app.js',

@@ -205,14 +205,18 @@
     turbot(b, s, info) {
       const { d, a1, b1, a2, b2, u1, u2, conn } = info;
       b.page(`숫자 ${d}가 딱 두 칸에만 들어갈 수 있는 집을 찾아봅시다: ${U(u1)}, ${U(u2)}.`, { units: [u1, u2] }, { lead: '살펴볼 곳' });
-      b.page(`${U(u1)}에서 ${d}는 ${N(a1)} 아니면 ${N(b1)}입니다. 둘 중 하나는 반드시 ${d}입니다 (실선).`,
+      b.page(`${U(u1)}에서 ${d}가 들어갈 수 있는 칸은 ${N(a1)}, ${N(b1)} 두 칸뿐입니다. 그래서 한쪽이 ${d}가 아니면 다른 쪽이 반드시 ${d}입니다. 이 관계를 실선으로 표시합니다.`,
         { cells: [a1, b1], marks: [mk(a1, d, 'alt'), mk(b1, d, 'alt')], links: [lk(a1, d, b1, d, 'strong')] });
-      b.page(`${U(u2)}에서도 ${d}는 ${N(a2)} 아니면 ${N(b2)}입니다 (실선).`,
+      b.page(`${U(u2)}에서도 ${d}는 ${N(a2)}, ${N(b2)} 두 칸뿐이므로 실선으로 잇습니다.`,
         { cells: [a2, b2], marks: [mk(a2, d, 'alt'), mk(b2, d, 'alt')], links: [lk(a2, d, b2, d, 'strong')] });
-      b.page(`그런데 ${N(a1)}과 ${N(a2)}는 ${conn}에 있어서 둘 다 ${d}일 수는 없습니다 (점선).`,
+      b.page(`${N(a1)}과 ${N(a2)}는 ${conn}에 있어서, 한쪽이 ${d}이면 다른 쪽은 ${d}가 될 수 없습니다. 이 관계를 점선으로 표시합니다.`,
         { links: [lk(a1, d, a2, d, 'weak')] });
-      b.page(`${N(a1)}이 ${d}가 아니면 ${N(b1)}이 ${d}이고, ${N(a2)}가 ${d}가 아니면 ${N(b2)}가 ${d}입니다. ${N(a1)}, ${N(a2)} 중 적어도 하나는 ${d}가 아니므로, ${N(b1)}과 ${N(b2)} 중 적어도 하나는 반드시 ${d}입니다.`,
-        { marks: [mk(b1, d, 'key'), mk(b2, d, 'key')] });
+      b.page(`${N(b1)}이 ${d}가 아니라고 가정해 봅시다.`, { marks: [mk(b1, d, 'off')] }, { lead: '가정' });
+      b.page(`실선을 따라가면 ${N(a1)}이 ${d}입니다. 그러면 점선을 따라 ${N(a2)}는 ${d}가 될 수 없습니다.`,
+        { marks: [mk(a1, d, 'key'), mk(a2, d, 'off')] });
+      b.page(`${N(a2)}가 ${d}가 아니므로, 실선을 따라 ${N(b2)}가 반드시 ${d}입니다.`, { marks: [mk(b2, d, 'key')] });
+      b.page(`정리하면, ${N(b1)}이 ${d}가 아니면 ${N(b2)}가 ${d}입니다. 즉 ${N(b1)}과 ${N(b2)} 중 적어도 하나는 반드시 ${d}입니다.`,
+        { marks: [mk(b1, d, 'key'), mk(b2, d, 'key'), mk(a1, d, 'alt'), mk(a2, d, 'alt')] });
       finish(b, s, `${N(b1)}과 ${N(b2)}를 모두 보는 칸에는 ${d}가 올 수 없습니다.`, { links: elimLinks(s, [b1, b2], () => d) });
     },
 
@@ -242,15 +246,21 @@
     'w-wing'(b, s, info) {
       const { A, B, x, y, p, q, u } = info;
       const xy = [x, y].sort();
-      b.page(`${N(A)}와 ${N(B)}의 후보는 둘 다 ${brace(xy)}입니다.`,
+      b.page(`${N(A)}와 ${N(B)}는 후보가 똑같이 ${brace(xy)}인 두 칸입니다. 이 두 칸 중 적어도 하나는 반드시 ${y}라는 것을 차례로 보여 드릴게요.`,
         { cells: [A, B], marks: [A, B].flatMap(c => xy.map(d => mk(c, d, 'alt'))) }, { lead: '살펴볼 곳' });
-      b.page(`${U(u)}에서 숫자 ${x}는 ${N(p)} 아니면 ${N(q)}입니다 (실선).`,
+      b.page(`${U(u)}에서 ${x}가 들어갈 수 있는 칸은 ${N(p)}, ${N(q)} 두 칸뿐입니다. 그래서 한쪽이 ${x}가 아니면 다른 쪽이 반드시 ${x}입니다. 이 관계를 실선으로 표시합니다.`,
         { units: [u], cells: [p, q], marks: [mk(p, x, 'alt'), mk(q, x, 'alt')], links: [lk(p, x, q, x, 'strong')] });
-      b.page(`${N(p)}는 ${N(A)}와, ${N(q)}는 ${N(B)}와 같은 집에 있습니다 (점선).`,
-        { links: [lk(A, x, p, x, 'weak'), lk(B, x, q, x, 'weak')] });
-      b.page(`만약 ${N(A)}와 ${N(B)}가 둘 다 ${x}라면 ${N(p)}와 ${N(q)} 모두 ${x}가 될 수 없어 모순입니다. 그러니 ${N(A)}와 ${N(B)} 중 적어도 하나는 ${y}입니다.`,
-        { marks: [mk(A, y, 'key'), mk(B, y, 'key')] });
-      finish(b, s, `두 칸을 모두 보는 칸에는 ${y}가 올 수 없습니다.`, { links: elimLinks(s, [A, B], () => y) });
+      b.page(`${N(A)}가 ${y}가 아니라고 가정해 봅시다. 그러면 ${N(A)}는 ${x}입니다.`,
+        { marks: [mk(A, y, 'off'), mk(A, x, 'key')] }, { lead: '가정' });
+      b.page(`${N(A)}가 ${x}이면, ${sameHouse(A, p)}에 있는 ${N(p)}는 ${x}가 될 수 없습니다. 같은 집에 같은 숫자가 두 번 올 수 없기 때문이고, 이 관계를 점선으로 표시합니다.`,
+        { links: [lk(A, x, p, x, 'weak')], marks: [mk(p, x, 'off')] });
+      b.page(`${N(p)}가 ${x}가 아니므로, 실선을 따라 ${N(q)}가 반드시 ${x}입니다.`,
+        { marks: [mk(q, x, 'key')] });
+      b.page(`${N(q)}가 ${x}이면, 점선을 따라 ${sameHouse(q, B)}의 ${N(B)}는 ${x}가 될 수 없습니다. 그러면 ${N(B)}에 남은 후보는 ${y}뿐입니다.`,
+        { links: [lk(q, x, B, x, 'weak')], marks: [mk(B, x, 'off'), mk(B, y, 'key')] });
+      b.page(`정리하면, ${N(A)}가 ${y}가 아니면 ${N(B)}가 ${y}입니다. 즉 두 칸 중 적어도 하나는 반드시 ${y}입니다.`,
+        { marks: [mk(A, y, 'key'), mk(B, y, 'key'), mk(A, x, 'alt'), mk(B, x, 'alt'), mk(p, x, 'alt'), mk(q, x, 'alt')] });
+      finish(b, s, `${N(A)}와 ${N(B)}를 모두 보는 칸에는 ${y}가 올 수 없습니다.`, { links: elimLinks(s, [A, B], () => y) });
     },
 
     'unique-rectangle'(b, s, info) {
