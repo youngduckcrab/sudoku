@@ -499,7 +499,7 @@
             const on = (mask & bit(d)) || role;
             let k = '';
             if (role) k = `m-${role}`;
-            else if (!h && settings.highlightSame && selVal === d) k = 'hl';
+            else if (on && !h && settings.highlightSame && selVal === d) k = 'hl';
             html += `<span class="${k}">${on ? d : ''}</span>`;
           }
           html += '</div>';

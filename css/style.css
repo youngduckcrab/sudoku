@@ -12,6 +12,8 @@
   --sel: #bcd3ff;
   --peer: #e9eef8;
   --same: #d3e0fb;
+  --note-hl: rgba(36, 87, 197, .45);
+  --note-hl-ink: #10224f;
   --accent: #2457c5;
   --accent-ink: #ffffff;
   --h-unit: #fff4cc;
@@ -45,6 +47,8 @@
     --sel: #2e4a80;
     --peer: #262c37;
     --same: #2a3a5c;
+    --note-hl: rgba(91, 140, 255, .5);
+    --note-hl-ink: #ffffff;
     --accent: #5b8cff;
     --accent-ink: #0d1220;
     --h-unit: #3a3320;
@@ -170,7 +174,14 @@ button { font: inherit; color: inherit; cursor: pointer; }
   font-weight: 500;
   border-radius: 50%;
 }
-.notes span.hl { color: var(--accent); font-weight: 800; }
+.notes span.hl {
+  /* selected digit in notes: translucent filled square, like a marker pen */
+  background: var(--note-hl);
+  color: var(--note-hl-ink);
+  font-weight: 800;
+  border-radius: 3px;
+  margin: 1px;
+}
 
 /* hint overlay */
 .cell.h-unit { background: var(--h-unit); }
