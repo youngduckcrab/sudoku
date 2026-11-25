@@ -193,9 +193,24 @@
       st.undo.push(stroke.before);
       if (st.undo.length > 300) st.undo.shift();
       st.redo = [];
+      if (stroke.kind === 'value') advancePen();
       persist(); render(); checkWin();
     }
     stroke = null;
+  }
+
+  const placedCount = d => st.values.reduce((n, v) => n + (v === d ? 1 : 0), 0);
+  /** After the pen's digit has all nine copies on the board, move the pen to the next unfinished digit. */
+  function advancePen() {
+    if (!(pen > 0) || placedCount(pen) < 9 || st.values.every(v => v)) return;
+    for (let k = 1; k <= 8; k++) {
+      const d = (pen - 1 + k) % 9 + 1;
+      if (placedCount(d) < 9) {
+        toast(`${pen} 완료 → 펜을 ${d}(으)로 바꿨습니다`);
+        pen = d;
+        return;
+      }
+    }
   }
 
   function fillCandidates() {
