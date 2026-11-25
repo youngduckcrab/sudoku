@@ -27,6 +27,9 @@
   --elim: #d13c3c;
   --elim-bg: #fde0e0;
   --place: #1f9d55;
+  --link: #7c3aed;
+  --off: #c2410c;
+  --off-bg: #ffe3c7;
   --shadow: 0 10px 30px rgba(20, 24, 33, .14);
   --radius: 14px;
   color-scheme: light;
@@ -62,6 +65,9 @@
     --elim: #ff7676;
     --elim-bg: #5a2427;
     --place: #4fd38a;
+    --link: #b79cff;
+    --off: #ffa24d;
+    --off-bg: #4a3216;
     --shadow: 0 10px 30px rgba(0, 0, 0, .5);
     color-scheme: dark;
   }
@@ -190,6 +196,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .cell.h-ghost .notes span { opacity: .75; }
 .notes span.m-key { background: var(--key-bg); color: var(--key); font-weight: 800; opacity: 1 !important; }
 .notes span.m-alt { background: var(--alt-bg); color: var(--alt); font-weight: 800; opacity: 1 !important; }
+.notes span.m-off { background: var(--off-bg); color: var(--off); font-weight: 800; opacity: 1 !important; }
+.notes span.m-node { box-shadow: inset 0 0 0 1.5px var(--link); color: var(--ink); font-weight: 700; opacity: 1 !important; }
+.cell.h-cross .notes span { opacity: .35; }
 .notes span.m-elim { background: var(--elim-bg); color: var(--elim); font-weight: 800; opacity: 1 !important; text-decoration: line-through; }
 .cell .v.preview { color: var(--place); font-weight: 700; opacity: .9; }
 .cell.h-place { box-shadow: inset 0 0 0 3px var(--place); }
@@ -259,7 +268,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .sheet-text .lead { display: block; font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 2px; }
 .sheet-note { margin: 0 0 8px; font-size: 13px; color: var(--muted); line-height: 1.5; }
 .sheet-actions { display: flex; gap: 8px; justify-content: flex-end; position: sticky; bottom: -14px; background: var(--surface); padding: 8px 0 0; }
-.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.5px; color: var(--muted); margin-bottom: 10px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
 .legend[hidden] { display: none; }
 .legend span { display: inline-flex; align-items: center; gap: 5px; }
 .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
@@ -326,3 +335,27 @@ button { font: inherit; color: inherit; cursor: pointer; }
 @media (min-width: 900px) and (min-height: 700px) {
   .app { --board: min(540px, calc(100dvh - 320px)); }
 }
+
+/* hint drawing layer */
+.board { position: relative; }
+.overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; overflow: visible; }
+.overlay path, .overlay line { fill: none; stroke-linecap: round; }
+.overlay .lk-strong { stroke: var(--link); stroke-width: 4.5; }
+.overlay .lk-weak { stroke: var(--link); stroke-width: 3.5; stroke-dasharray: 8 7; }
+.overlay .lk-arrow { stroke: var(--link); stroke-width: 4; }
+.overlay .ah { fill: var(--link); stroke: none; }
+.overlay .lk-elim { stroke: var(--elim); stroke-width: 2.5; stroke-dasharray: 3 6; opacity: .85; }
+.overlay .lk-band { stroke: var(--key); stroke-width: 28; opacity: .2; }
+.overlay .lk-ray { stroke: var(--h-cell); stroke-width: 7; opacity: .55; }
+.overlay .lk-frame { stroke: var(--h-cell); stroke-width: 5; opacity: .9; }
+.overlay .cross { stroke: var(--elim); stroke-width: 5; opacity: .5; }
+
+.dot.off { background: var(--off); }
+.dot.node { background: transparent; box-shadow: inset 0 0 0 2px var(--link); }
+.legend .ln { display: inline-block; width: 22px; height: 0; border-top: 3px solid var(--link); }
+.legend .ln.weak { border-top-style: dashed; }
+.legend .ln.arrow { position: relative; }
+.legend .ln.arrow::after { content: ''; position: absolute; right: -2px; top: -6px; border: 4.5px solid transparent; border-left: 7px solid var(--link); }
+.legend .x { display: inline-block; width: 12px; height: 12px; position: relative; }
+.legend .x::before, .legend .x::after { content: ''; position: absolute; left: 5px; top: -1px; width: 2.5px; height: 14px; background: var(--elim); opacity: .6; transform: rotate(45deg); }
+.legend .x::after { transform: rotate(-45deg); }

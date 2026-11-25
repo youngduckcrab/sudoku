@@ -102,6 +102,7 @@
       const d = ds[0];
       return step({
         id: 'full-house', name: '마지막 빈칸 (Full House)',
+        info: { u, c, d },
         placements: [{ cell: c, digit: d }], cells: [c], units: [u],
         marks: [{ cell: c, digit: d, role: 'place' }],
         summary: `${unitName(u)}을(를) 살펴보세요. 빈칸이 하나만 남았습니다.`,
@@ -125,6 +126,7 @@
         for (let k = 0; k < 81; k++) if (s.grid[k] === d && others.some(o => sees(o, k))) blockers.push(k);
         return step({
           id: 'hidden-single', name: '히든 싱글 (Hidden Single)',
+          info: { u, c, d, blockers },
           placements: [{ cell: c, digit: d }], cells: [c], refs: blockers, units: [u],
           marks: [{ cell: c, digit: d, role: 'place' }],
           summary: `${unitName(u)}에서 숫자 ${d}가 들어갈 자리를 찾아보세요.`,
@@ -146,6 +148,7 @@
       const seenList = [...seen].sort();
       return step({
         id: 'naked-single', name: '네이키드 싱글 (Naked Single)',
+        info: { c, d },
         placements: [{ cell: c, digit: d }], cells: [c], units: CELL_UNITS[c].slice(),
         marks: [{ cell: c, digit: d, role: 'place' }],
         summary: `${cellName(c)}의 후보를 확인해 보세요.`,
@@ -173,6 +176,7 @@
           if (!elims.length) continue;
           return step({
             id: 'pointing', name: '포인팅 (Pointing)',
+            info: { box: b, line, d, cells: cs },
             eliminations: elims, cells: cs, units: [b, line],
             marks: cs.map(c => ({ cell: c, digit: d, role: 'key' })).concat(elimMarks(elims)),
             summary: `${unitName(b)}에서 숫자 ${d}의 위치를 살펴보세요.`,
@@ -196,6 +200,7 @@
         if (!elims.length) continue;
         return step({
           id: 'claiming', name: '클레이밍 (Claiming / 박스-라인)',
+          info: { line: u, box: b, d, cells: cs },
           eliminations: elims, cells: cs, units: [u, b],
           marks: cs.map(c => ({ cell: c, digit: d, role: 'key' })).concat(elimMarks(elims)),
           summary: `${unitName(u)}에서 숫자 ${d}의 위치를 살펴보세요.`,
@@ -235,6 +240,7 @@
           const where = shared.map(unitName).join('와(과) ');
           return step({
             id: `naked-${en.toLowerCase()}`, name: `네이키드 ${ko} (Naked ${en})`,
+            info: { unit: u, units: shared, cells: combo, digits: ds },
             eliminations: elims, cells: combo, units: shared,
             marks: keyMarks(combo, m, 'key', s).concat(elimMarks(elims)),
             summary: `${unitName(u)}에서 후보가 ${n}개 이하인 칸들을 비교해 보세요.`,
@@ -276,6 +282,7 @@
           const [ko, en] = SUBSET_NAMES[n];
           return step({
             id: `hidden-${en.toLowerCase()}`, name: `히든 ${ko} (Hidden ${en})`,
+            info: { unit: u, digits: combo, cells: cs },
             eliminations: elims, cells: cs, units: [u],
             marks: keyMarks(cs, m, 'key', s).concat(elimMarks(elims)),
             summary: `${unitName(u)}에서 숫자 ${combo.join(', ')}이(가) 들어갈 수 있는 칸을 살펴보세요.`,
@@ -322,6 +329,7 @@
             const lineWord = rowsBase ? '열' : '행';
             return step({
               id: en.toLowerCase(), name: `${ko} (${en})`,
+              info: { d, base: combo, cover: coverList, cells: baseCells, pos: combo.map(u => pos[u]), rowsBase },
               eliminations: elims, cells: baseCells, units: combo.concat(coverList),
               marks: baseCells.map(c => ({ cell: c, digit: d, role: 'key' })).concat(elimMarks(elims)),
               summary: `숫자 ${d}가 들어갈 수 있는 위치를 ${rowsBase ? '행' : '열'}별로 비교해 보세요.`,
@@ -382,6 +390,7 @@
             ROW[a1] === ROW[a2] ? `같은 행(${ROW[a1] + 1}행)` : COL[a1] === COL[a2] ? `같은 열(${COL[a1] + 1}열)` : `같은 박스(${BOX[a1] + 1}번 박스)`;
           found[type] = step({
             id: type === 'kite' ? '2-string-kite' : type, name: names[type],
+            info: { d, a1, b1, a2, b2, u1: L1.u, u2: L2.u, conn },
             eliminations: elims, cells: [a1, b1, a2, b2], units: [L1.u, L2.u],
             marks: [b1, b2].map(c => ({ cell: c, digit: d, role: 'key' }))
               .concat([a1, a2].map(c => ({ cell: c, digit: d, role: 'alt' }))).concat(elimMarks(elims)),
@@ -426,6 +435,7 @@
           const xd = DIGITS[x][0], yd = DIGITS[pm & ~x][0];
           return step({
             id: 'xy-wing', name: 'XY-윙 (XY-Wing)',
+            info: { p, a, b, x: xd, y: yd, z: zd },
             eliminations: elims, cells: [p, a, b],
             marks: [{ cell: p, digit: xd, role: 'alt' }, { cell: p, digit: yd, role: 'alt' },
               { cell: a, digit: xd, role: 'alt' }, { cell: b, digit: yd, role: 'alt' },
@@ -462,6 +472,7 @@
         const pd = DIGITS[pm];
         return step({
           id: 'xyz-wing', name: 'XYZ-윙 (XYZ-Wing)',
+          info: { p, a, b, z: zd },
           eliminations: elims, cells: [p, a, b],
           marks: [p, a, b].flatMap(c => DIGITS[s.cand[c]].map(d => ({ cell: c, digit: d, role: d === zd ? 'key' : 'alt' })))
             .concat(elimMarks(elims)),
@@ -495,6 +506,7 @@
           const elims = elimCells.map(c => ({ cell: c, digit: y }));
           return step({
             id: 'w-wing', name: 'W-윙 (W-Wing)',
+            info: { A, B, x, y, p, q, u: L.u },
             eliminations: elims, cells: [A, B, p, q], units: [L.u],
             marks: [{ cell: A, digit: x, role: 'alt' }, { cell: B, digit: x, role: 'alt' },
               { cell: p, digit: x, role: 'alt' }, { cell: q, digit: x, role: 'alt' },
@@ -534,6 +546,7 @@
         const rest = DIGITS[s.cand[D] & ~m];
         return step({
           id: 'unique-rectangle', name: '유일 사각형 (Unique Rectangle)',
+          info: { cells, bvs, D, a, b },
           eliminations: elims, cells,
           marks: keyMarks(bvs, m, 'key', s).concat(elimMarks(elims)),
           summary: `후보가 {${a}, ${b}}인 칸들이 만드는 직사각형을 찾아보세요.`,
@@ -572,6 +585,8 @@
         }
         if (comp.length < 4) continue;
         const g0 = comp.filter(c => color.get(c) === 0), g1 = comp.filter(c => color.get(c) === 1);
+        const compSet = new Set(comp);
+        const compLinks = links.filter(L => compSet.has(L.a) && compSet.has(L.b)).map(L => [L.a, L.b]);
         const colorMarks = g0.map(c => ({ cell: c, digit: d, role: 'key' })).concat(g1.map(c => ({ cell: c, digit: d, role: 'alt' })));
         // Color wrap
         for (const [grp, other, label] of [[g0, g1, '파란색'], [g1, g0, '주황색']]) {
@@ -581,6 +596,7 @@
           const elims = grp.map(c => ({ cell: c, digit: d }));
           return step({
             id: 'simple-coloring', name: '단순 색칠 (Simple Coloring)',
+            info: { d, g0, g1, rule: 'wrap', falseGroup: grp === g0 ? 0 : 1, clash, links: compLinks },
             eliminations: elims, cells: comp,
             marks: colorMarks.filter(mk => !grp.includes(mk.cell)).concat(elimMarks(elims)),
             summary: `숫자 ${d}가 두 칸에만 들어갈 수 있는 집들을 따라 연결해 보세요.`,
@@ -601,6 +617,7 @@
         const elims = elimCells.map(c => ({ cell: c, digit: d }));
         return step({
           id: 'simple-coloring', name: '단순 색칠 (Simple Coloring)',
+          info: { d, g0, g1, rule: 'trap', links: compLinks },
           eliminations: elims, cells: comp,
           marks: colorMarks.concat(elimMarks(elims)),
           summary: `숫자 ${d}가 두 칸에만 들어갈 수 있는 집들을 따라 연결해 보세요.`,
@@ -672,6 +689,7 @@
         const proof = p.map((c, i) => `${cellName(c)}${i % 2 === 0 ? '≠' : '='}${d}`).join(' ⇒ ');
         return step({
           id: 'x-chain', name: 'X-체인 (X-Chain)',
+          info: { d, path: p },
           eliminations: elims, cells: p,
           marks: p.map((c, i) => ({ cell: c, digit: d, role: i === 0 || i === p.length - 1 ? 'key' : 'alt' }))
             .concat(elimMarks(elims)),
@@ -737,6 +755,7 @@
       const proof = p.map((c, i) => `${cellName(c)}=${trueDigits[i]}`).join(' ⇒ ');
       return step({
         id: 'xy-chain', name: 'XY-체인 (XY-Chain)',
+        info: { z, path: p },
         eliminations: elims, cells: p,
         marks: p.flatMap((c, i) => vals[i].map(d => ({ cell: c, digit: d, role: (i === 0 || i === p.length - 1) && d === z ? 'key' : 'alt' })))
           .concat(elimMarks(elims)),

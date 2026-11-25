@@ -307,35 +307,13 @@
     if (!st || st.done) return;
     if (hint) { hintNext(); return; }
     hint = computeHint();
-    hint.pages = buildPages(hint);
+    hint.pages = window.SudokuExplain.build(hint.step, hint.cand || C.computeCandidates(st.values), st.values.slice(), hint.special);
     hint.page = 0;
     st.hints++;
     persist();
     renderHint(); render();
   }
 
-  /* Split a hint into pages shown one at a time:
-   *   'area'    – where to look (houses shaded only)
-   *   'pattern' – one sentence of reasoning per page (pattern cells and key candidates)
-   *   'full'    – the conclusion (candidates to remove / digit to place) */
-  function buildPages(h) {
-    const s = h.step;
-    let text = C.fixJosa(s.text);
-    let conclusion = '';
-    const arrow = text.indexOf('→');
-    if (arrow >= 0) { conclusion = text.slice(arrow + 1).trim(); text = text.slice(0, arrow).trim(); }
-    // Sentence boundaries: "...다." / "...)." / "...=8." / "...3열." followed by a space.
-    const sentences = text.replace(/([다\d)열]\.)\s+/g, '$1\n').split('\n').map(x => x.trim()).filter(Boolean);
-    if (!conclusion && sentences.length > 1) conclusion = sentences.pop();
-    const pages = [];
-    if (!h.special) pages.push({ text: C.fixJosa(s.summary), phase: 'area' });
-    for (const t of sentences) pages.push({ text: t, phase: 'pattern' });
-    if (conclusion) pages.push({ text: conclusion, phase: 'full', conclusion: true });
-    if (!pages.length) pages.push({ text: text, phase: 'full' });
-    pages[pages.length - 1].phase = 'full';
-    return pages;
-  }
-  const hintPhase = () => (hint ? hint.pages[hint.page].phase : null);
   function hintNext() {
     if (!hint) return;
     if (hint.page < hint.pages.length - 1) { hint.page++; renderHint(); render(); }
@@ -360,15 +338,10 @@
     const textEl = $('hint-text');
     textEl.textContent = '';
     textEl.className = 'sheet-text' + (pg.conclusion ? ' conclusion' + (s.placements.length && !s.eliminations.length ? ' place' : '') : '');
-    if (pg.conclusion) {
+    if (pg.lead) {
       const lead = document.createElement('span');
       lead.className = 'lead';
-      lead.textContent = '결론';
-      textEl.appendChild(lead);
-    } else if (pg.phase === 'area') {
-      const lead = document.createElement('span');
-      lead.className = 'lead';
-      lead.textContent = '살펴볼 곳';
+      lead.textContent = pg.lead;
       textEl.appendChild(lead);
     }
     textEl.appendChild(document.createTextNode(pg.text));
@@ -376,7 +349,7 @@
     $('hint-prev').hidden = hint.page === 0;
     $('hint-next').hidden = last;
     $('hint-apply').hidden = !last;
-    $('hint-legend').hidden = pg.phase === 'area' || !s.marks.length || !!hint.special;
+    renderLegend(pg);
     const note = $('hint-note');
     note.hidden = true;
     if (detailed && !hint.special && s.eliminations.length && st.values.some((v, c) => !v && !st.notes[c])) {
@@ -386,6 +359,22 @@
       note.hidden = false;
       note.textContent = C.fixJosa(`적용하면 ${s.placements.map(p => `${cellName(p.cell)}에 ${p.digit}`).join(', ')}을(를) 채웁니다.`);
     }
+  }
+
+  const LEGEND = [
+    ['key', 'dot key', '들어감'], ['off', 'dot off', '아님'], ['alt', 'dot alt', '관련 후보'], ['node', 'dot node', '연결 후보'],
+    ['elim', 'dot elim', '지울 후보'], ['place', 'dot place', '채울 숫자'],
+    ['strong', 'ln strong', '실선: 둘 중 하나는 참'], ['weak', 'ln weak', '점선: 둘 다 참일 수 없음'],
+    ['arrow', 'ln arrow', '그러면'], ['cross', 'x', '올 수 없음'],
+  ];
+  function renderLegend(pg) {
+    const el = $('hint-legend');
+    const present = new Set(pg.marks.map(m => m.role).concat(pg.links.map(l => l.type)));
+    if (pg.place.length) present.add('place');
+    if (pg.crosses.length) present.add('cross');
+    const items = LEGEND.filter(([k]) => present.has(k));
+    el.hidden = !items.length;
+    el.innerHTML = items.map(([, cls, label]) => `<span><i class="${cls}"></i>${label}</span>`).join('');
   }
 
   function applyHint() {
@@ -427,6 +416,12 @@
       el.setAttribute('role', 'gridcell');
       boardEl.appendChild(el);
     }
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'overlay');
+    svg.setAttribute('viewBox', '0 0 900 900');
+    svg.setAttribute('preserveAspectRatio', 'none');
+    svg.setAttribute('aria-hidden', 'true');
+    boardEl.appendChild(svg);
     padEl.innerHTML = '';
     for (let d = 1; d <= 9; d++) {
       const b = document.createElement('button');
@@ -442,24 +437,21 @@
     const selVal = settings.quickPen ? Math.max(pen, 0) : sel >= 0 ? st.values[sel] : 0;
     const conflicts = C.conflicts(st.values);
     const h = hint;
-    const hUnits = new Set(), hCells = new Set(), hRefs = new Set(), markMap = new Map(), places = new Map();
-    if (h) {
-      const s = h.step;
-      for (const u of s.units || []) for (const c of C.UNITS[u]) hUnits.add(c);
-      const phase = hintPhase();
-      if (phase !== 'area') {
-        const full = phase === 'full';
-        for (const c of s.cells) hCells.add(c);
-        for (const c of s.refs || []) hRefs.add(c);
-        for (const m of s.marks) {
-          if (m.role === 'place' || (m.role === 'elim' && !full)) continue;
-          if (!markMap.has(m.cell)) markMap.set(m.cell, new Map());
-          const cur = markMap.get(m.cell).get(m.digit);
-          if (cur !== 'elim') markMap.get(m.cell).set(m.digit, m.role);
-        }
-        if (full) for (const p of s.placements) places.set(p.cell, p.digit);
+    const hUnits = new Set(), hCells = new Set(), hRefs = new Set(), markMap = new Map(), places = new Map(), crosses = new Set();
+    const pg = h ? h.pages[h.page] : null;
+    if (pg) {
+      for (const u of pg.units) for (const c of C.UNITS[u]) hUnits.add(c);
+      for (const c of pg.cells) hCells.add(c);
+      for (const c of pg.refs) hRefs.add(c);
+      for (const c of pg.crosses) crosses.add(c);
+      for (const m of pg.marks) {
+        if (m.role === 'place') continue;
+        if (!markMap.has(m.cell)) markMap.set(m.cell, new Map());
+        markMap.get(m.cell).set(m.digit, m.role);
       }
+      for (const p of pg.place) places.set(p.cell, p.digit);
     }
+    drawOverlay(pg, crosses);
 
     const cells = boardEl.children;
     for (let c = 0; c < 81; c++) {
@@ -476,6 +468,7 @@
         else if (hUnits.has(c)) cls.push('h-unit');
         if (hCells.has(c)) cls.push('h-cell');
         if (places.has(c)) cls.push('h-place');
+        if (crosses.has(c)) cls.push('h-cross');
       }
       if (v && conflicts.has(c) && !st.givens[c]) cls.push('conflict');
       if (v && !st.givens[c] && settings.showMistakes && v !== st.solution[c]) cls.push('wrong');
@@ -489,7 +482,7 @@
       } else {
         let mask = st.notes[c];
         const marks = markMap.get(c);
-        const showGhost = h && hintPhase() !== 'area' && h.cand && (hCells.has(c) || marks) && !h.special;
+        const showGhost = h && h.cand && (hCells.has(c) || marks) && !h.special;
         if (showGhost && !mask) { mask = h.cand[c]; cls.push('h-ghost'); }
         if (h && h.special === 'cleanup' && marks) mask = st.notes[c];
         if (mask || marks) {
@@ -534,6 +527,50 @@
     const mk = $('mistakes');
     mk.hidden = !settings.showMistakes || !st.mistakes;
     mk.textContent = `오답 ${st.mistakes}`;
+  }
+
+  /* Lines between candidates for hint pages, drawn on an SVG layer over the board. */
+  function candPoint(cell, digit) {
+    const x0 = COL[cell] * 100, y0 = ROW[cell] * 100;
+    if (!digit) return [x0 + 50, y0 + 50];
+    return [x0 + ((digit - 1) % 3) * 100 / 3 + 100 / 6, y0 + Math.floor((digit - 1) / 3) * 100 / 3 + 100 / 6];
+  }
+  function drawOverlay(pg, crosses) {
+    const svg = boardEl.querySelector('svg.overlay');
+    if (!svg) return;
+    if (!pg) { if (svg.innerHTML) svg.innerHTML = ''; return; }
+    let out = '<defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto">' +
+      '<path d="M0,0 L10,5 L0,10 z" class="ah"/></marker></defs>';
+    for (const c of crosses) {
+      const x = COL[c] * 100, y = ROW[c] * 100;
+      out += `<path class="cross" d="M${x + 32},${y + 32} L${x + 68},${y + 68} M${x + 68},${y + 32} L${x + 32},${y + 68}"/>`;
+    }
+    // bands and frames first (underneath), chains on top
+    const order = { band: 0, frame: 1, ray: 2, elim: 3, weak: 4, strong: 5, arrow: 6 };
+    const links = pg.links.slice().sort((a, b) => (order[a.type] || 0) - (order[b.type] || 0));
+    for (const l of links) {
+      let [x1, y1] = candPoint(l.a.cell, l.a.digit);
+      let [x2, y2] = candPoint(l.b.cell, l.b.digit);
+      const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy);
+      if (len < 1) continue;
+      if (l.type === 'band' || l.type === 'frame') {
+        out += `<line class="lk-${l.type}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
+        continue;
+      }
+      const ra = l.a.digit ? 14 : 32, rb = l.b.digit ? (l.type === 'arrow' ? 17 : 14) : 32;
+      const ux = dx / len, uy = dy / len;
+      x1 += ux * ra; y1 += uy * ra; x2 -= ux * rb; y2 -= uy * rb;
+      if (l.type === 'ray') {
+        out += `<line class="lk-ray" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
+        continue;
+      }
+      // gentle curve so lines don't run straight through other candidates
+      const bend = Math.min(36, len * 0.12);
+      const cx = (x1 + x2) / 2 - uy * bend, cy = (y1 + y2) / 2 + ux * bend;
+      out += `<path class="lk-${l.type}" d="M${x1.toFixed(1)},${y1.toFixed(1)} Q${cx.toFixed(1)},${cy.toFixed(1)} ${x2.toFixed(1)},${y2.toFixed(1)}"` +
+        (l.type === 'arrow' ? ' marker-end="url(#ah)"' : '') + '/>';
+    }
+    svg.innerHTML = out;
   }
 
   /* ------------------------------------------------------------ timer */
