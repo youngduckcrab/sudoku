@@ -162,9 +162,11 @@
     if (!pen && !st.values[c]) return false;
     let kind = null, pick = 0;
     if (pen === -1) kind = 'erase';
-    else if (!pen || st.givens[c] || (st.values[c] && st.notesMode)) {
-      // Starting on a number: a plain tap picks it as the pen; a drag that
-      // continues into empty cells (notes mode) still writes notes there.
+    else if (!pen || st.givens[c] || (st.values[c] && (st.notesMode || !shownWrong(c)))) {
+      // Starting on a number (given or already filled): a plain tap picks it as
+      // the pen and never changes the cell; a drag that continues into empty
+      // cells (notes mode) still writes notes there. Only a number shown as
+      // wrong can be overwritten by the pen.
       pick = st.values[c];
     } else if (st.notesMode) kind = st.notes[c] & bit(pen) ? 'note-off' : 'note-on';
     else kind = 'value';
@@ -172,6 +174,7 @@
     strokeApply(c);
     return true;
   }
+  const shownWrong = c => settings.showMistakes && !st.givens[c] && st.values[c] && st.values[c] !== st.solution[c];
   function strokeApply(c) {
     if (!stroke || c === stroke.last || c < 0) return;
     stroke.last = c;
