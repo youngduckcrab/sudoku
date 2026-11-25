@@ -23,6 +23,11 @@
   // Quick pen: 0 = none, 1..9 = digit pen, -1 = eraser.
   let pen = 0;
   let stroke = null; // active drag in quick-pen mode
+  /** Change the quick pen. The last-filled cell stays highlighted only while the same pen is in use. */
+  function setPen(d) {
+    if (d !== pen && st) st.selected = -1;
+    pen = d;
+  }
 
   /* ------------------------------------------------------------ game */
 
@@ -114,7 +119,7 @@
     if (!st || st.done) return;
     if (settings.quickPen) { // pick (or drop) the pen
       closeHint();
-      pen = pen === d ? 0 : d;
+      setPen(pen === d ? 0 : d);
       render();
       return;
     }
@@ -137,7 +142,7 @@
   }
   function erase() {
     if (!st || st.done) return;
-    if (settings.quickPen) { closeHint(); pen = pen === -1 ? 0 : -1; render(); return; }
+    if (settings.quickPen) { closeHint(); setPen(pen === -1 ? 0 : -1); render(); return; }
     eraseSelected();
   }
 
@@ -188,7 +193,7 @@
   }
   function strokeEnd() {
     if (!stroke) return;
-    if (stroke.pick) { pen = stroke.pick; render(); }
+    if (stroke.pick) { setPen(stroke.pick); render(); }
     if (stroke.changed) {
       st.undo.push(stroke.before);
       if (st.undo.length > 300) st.undo.shift();
@@ -207,7 +212,7 @@
       const d = (pen - 1 + k) % 9 + 1;
       if (placedCount(d) < 9) {
         toast(`${pen} 완료 → 펜을 ${d}(으)로 바꿨습니다`);
-        pen = d;
+        setPen(d);
         return;
       }
     }
